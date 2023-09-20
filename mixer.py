@@ -13,6 +13,7 @@ from scipy import signal
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 
+gitaddflag = 1
 
 CHUNK = 44100
 CH_OUT = 1 
