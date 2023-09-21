@@ -4,16 +4,12 @@
 import numpy as np
 import pyaudio
 import matplotlib.pyplot as plot
-import random
-import wave
 import PySimpleGUI as sg
 import sounddevice as sd
-import soundfile as sf
 from scipy import signal
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-
-gitaddflag = 1
+import mylib as ml # 出来るだけ関数を別ファイルにしたい
 
 CHUNK = 44100
 CH_OUT = 1 
@@ -45,9 +41,7 @@ def read_plot_data(stream):
     plot.cla()
 
 
-def mixSounds(pan,data_left,data_rigth):
-    data_mixed = pan*data_left + (1-pan)*data_rigth
-    return data_mixed
+
 
 
 def lpf(wave,fs,fe,n):
@@ -101,18 +95,6 @@ def callback(indata, frames, time, status):
     print(np.sqrt(np.mean(indata**2)))
 
 
-def extractInfo(path):
-    print()
-
-class extractInfo:
-    def __init__(self, path):
-        self.path = path
-        self.sig, self.sr = sf.read(self.path, always_2d=True)
-        self.n_samples, self.n_channels = self.sig.shape
-
-
-# GRAPH_SIZE = (500, 500)
-# DATA_SIZE = (500, 500)
 
 ## GUI compornent
 frame_low1 = sg.Frame("lowpass1", layout=[
@@ -186,8 +168,6 @@ gstop = 40
 sd.default.device = [2, 4] 
 filepath1 = R"C:\Users\ma210\Desktop\pyPractice\music1.wav"
 filepath2 = R"C:\Users\ma210\Desktop\pyPractice\music2.wav"
-# sig1, sr1 = sf.read(filepath1, always_2d=True)
-# n_samples1, n_channels1 = sig1.shape
 
 f1 = extractInfo(filepath1)
 f2 = extractInfo(filepath2)
@@ -199,7 +179,6 @@ current_frame = 0
 
 while True:             # Event Loop
     event, values = window.read()
-    # print(event, values)
     # buffer_event = event
     window['-LEFT1-'].update(int(values['-SLIDER1-']))
     window['-LEFT2-'].update(int(values['-SLIDER2-']))
@@ -211,12 +190,7 @@ while True:             # Event Loop
     fp1 = np.array([440-220*int(values['-SLIDER1-'])/100, 1320+880*int(values['-SLIDER3-'])/100])     #通過域端周波数[Hz]※ベクトル
     fp2 = np.array([440-220*int(values['-SLIDER2-'])/100, 1320+880*int(values['-SLIDER4-'])/100])     #通過域端周波数[Hz]※ベクトル
     fs = np.array([20, 20000])      #阻止域端周波数[Hz]※ベクトル
-
-    # 2つ目のWhile文の中は出来るだけ軽くする！
-    # sig1 = f1.sig[:, :]* (1 - int(values['-SLIDER3-'])/100)
-    # sig2 = f2.sig[:, :]* int(values['-SLIDER3-'])/100
-    # sig1 = f1.sig[:, :]
-    # sig2 = f2.sig[:, :]
+ 
     nsp1 = f1.n_samples
     sr1 = f1.sr
     nchs1 = f1.n_channels
