@@ -11,46 +11,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import mylib as ml # 出来るだけ関数を別ファイルにしたい
 
-CHUNK = 44100
-CH_OUT = 1 
-FS = 44100
 
-# function
-def audiostart():
-    audio = pyaudio.PyAudio() 
-    stream = audio.open( format = pyaudio.paInt16,
-                         rate = 44100,
-                         channels = 1, 
-                         input_device_index = 1,
-                        input = True, 
-                        frames_per_buffer = 1024)
-    return audio, stream
-
-def audiostop(audio, stream):
-    stream.stop_stream()
-    stream.close()
-    audio.terminate()
-
-def read_plot_data(stream):
-    data = stream.read(1024)
-    audiodata = np.frombuffer(data, dtype='int16')
-    
-    plot.plot(audiodata)
-    plot.draw()
-    plot.pause(0.001)
-    plot.cla()
-
-
-
-
-
-def lpf(wave,fs,fe,n):
-    nyq = fs/2.0
-    b,a = signal.butter(1,fe/nyq,btype='low')
-    for i in range(0,n):
-        wave =signal.filtfilt(b,a,wave)
-    return wave
-
+## FUNCTION
 def bpf(x, samplerate, fp, fs, gpass, gstop):
     fn = samplerate / 2                           #ナイキスト周波数
     wp = fp / fn                                  #ナイキスト周波数で通過域端周波数を正規化
@@ -66,37 +28,10 @@ def draw_figure(canvas, figure):
     figure_canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
     return figure_canvas
 
-def procSound(data):
-
-    y=data[0:CHUNK-1]
-    
-    # array to buffer
-    #  float -> 16bit signed intに変換する
-    sndBuf = y.astype(np.int16).tobytes()
-    return sndBuf
 
 
-def demoBlockingMode(data):
-    pyAud = pyaudio.PyAudio()
-
-    sndStrm = pyAud.open(rate=FS,channels=CH_OUT,format=pyaudio.paInt16,input=False,output=True)
-
-    for cnt in range(100):
-        obuf = procSound(data)
-        if sndStrm.is_active :
-            sndStrm.write(obuf) # blocking mode. blocks until all the give frames have been played
-    sndStrm.stop_stream()
-    sndStrm.close()
-    pyAud.terminate()
-
-def callback(indata, frames, time, status):
-    # indata.shape=(n_samples, n_channels)
-    # print root mean square in the current frame
-    print(np.sqrt(np.mean(indata**2)))
-
-
-
-## GUI compornent
+## PRE PROCESS
+# GUI compornent
 frame_low1 = sg.Frame("lowpass1", layout=[
                      [sg.Text('lowpass Filter1'), sg.Text('', key='-OUTPUT1-')], # layoutは上からコンポ―ネントを決定していく
                      [sg.T('0',size=(4,1), key='-LEFT1-'),
@@ -131,9 +66,6 @@ frame_deck2 = sg.Frame("Deck2", layout=[
                      [sg.Canvas(key='-CANVAS2-')]])
 
 
-
-
-## Main
 window = sg.Window("DJ app", layout=[
     [sg.Text("DJアプリです")],
     [frame_deck1],
@@ -155,28 +87,29 @@ ax2.set_ylim(-10, 10)
 fig_agg1 = draw_figure(window['-CANVAS1-'].TKCanvas, fig)
 fig_agg2 = draw_figure(window['-CANVAS2-'].TKCanvas, fig)
 
-# property
-duration = 1
-n = 6
-cutoff = 450
-note_hz1 = 440
-note_hz2 = 880
 
 gpass = 3                     
 gstop = 40                     
-
-sd.default.device = [2, 4] 
-filepath1 = R"C:\Users\ma210\Desktop\pyPractice\music1.wav"
-filepath2 = R"C:\Users\ma210\Desktop\pyPractice\music2.wav"
-
-f1 = extractInfo(filepath1)
-f2 = extractInfo(filepath2)
-
 dtype = np.float32
 blocksize = 4096
 n_chunks = 0
 current_frame = 0
+sd.default.device = [2, 4] 
 
+filepath1 = R"C:\Users\ma210\Desktop\pyPractice\music1.wav"
+filepath2 = R"C:\Users\ma210\Desktop\pyPractice\music2.wav"
+f1 = ml.extractInfo(filepath1)
+f2 = ml.extractInfo(filepath2)
+
+# 今後複数のファイルを読み込んで処理するので，ここの書き方は変える
+nsp1 = f1.n_samples
+nchs1 = f1.n_channels
+sr1 = f1.sr
+# chunk = np.zeros((blocksize, f1.n_channels))
+
+
+
+## MAIN PROCESS
 while True:             # Event Loop
     event, values = window.read()
     # buffer_event = event
@@ -186,17 +119,10 @@ while True:             # Event Loop
     window['-LEFT4-'].update(int(values['-SLIDER4-']))
     window['-LEFT5-'].update(int(values['-SLIDER5-']))
 
-    # pre process
     fp1 = np.array([440-220*int(values['-SLIDER1-'])/100, 1320+880*int(values['-SLIDER3-'])/100])     #通過域端周波数[Hz]※ベクトル
     fp2 = np.array([440-220*int(values['-SLIDER2-'])/100, 1320+880*int(values['-SLIDER4-'])/100])     #通過域端周波数[Hz]※ベクトル
     fs = np.array([20, 20000])      #阻止域端周波数[Hz]※ベクトル
  
-    nsp1 = f1.n_samples
-    sr1 = f1.sr
-    nchs1 = f1.n_channels
-
-    chunk = np.zeros((blocksize, f1.n_channels))
-
     with sd.OutputStream(samplerate = sr1, 
                          blocksize = blocksize,
                          channels = nchs1,
@@ -231,10 +157,11 @@ while True:             # Event Loop
                 break
 
 
-
-
     if event == 'Show':
         sg.popup(f'The slider value = {values["-SLIDER-"]}')
 window.close()
    
-    
+
+# 1 git add .
+# 2 git commit -m "commit name"
+# 3 git push origin main
