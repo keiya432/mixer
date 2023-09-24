@@ -1,8 +1,10 @@
 # source code here
 # import
 # py -m pip install
+
+# StartStopButton?
+
 import numpy as np
-import pyaudio
 import matplotlib.pyplot as plot
 import PySimpleGUI as sg
 import sounddevice as sd
@@ -112,6 +114,7 @@ sr1 = f1.sr
 ## MAIN PROCESS
 while True:             # Event Loop
     event, values = window.read()
+
     # buffer_event = event
     window['-LEFT1-'].update(int(values['-SLIDER1-']))
     window['-LEFT2-'].update(int(values['-SLIDER2-']))
@@ -136,12 +139,13 @@ while True:             # Event Loop
             # mix
             d1 =  bpf(f1.sig[current_frame:current_frame + chunksize, :],sr1, fp1, fs, gpass, gstop) * (1 - int(values['-SLIDER5-'])/100)
             d2 =  bpf(f2.sig[current_frame:current_frame + chunksize, :],sr1, fp2, fs, gpass, gstop) * int(values['-SLIDER5-'])/100
-            
-            data_filtered = d1 + d2
-            stream1.write( data_filtered.astype(dtype) ) 
+            data_mixed = d1 + d2
+
+            stream1.write( data_mixed.astype(dtype) ) 
             n_chunks += 1
             
-            # ax1.cla() # 更新前のグラフを消去
+            # この処理を入れると重くなる
+            # ax1.cla() # 更新前のグラフを消去 
             # ax1.plot(data_filtered, alpha=0.4)
             # ax2.cla() # 更新前のグラフを消去
             # ax1.plot(data_filtered, alpha=0.4)
