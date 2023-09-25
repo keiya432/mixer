@@ -30,7 +30,8 @@ def draw_figure(canvas, figure):
     figure_canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
     return figure_canvas
 
-
+def bit_invert(num):
+    return ~num & 1
 
 ## PRE PROCESS
 # GUI compornent
@@ -75,6 +76,8 @@ window = sg.Window("DJ app", layout=[
     [frame_low1,frame_low2],
     [frame_high1,frame_high2],
     [frame_mix],
+    [sg.Button("start/stop1")],
+    [sg.Button("start/stop2")],
     ],element_justification='center',finalize=True)
 
 # 埋め込む用のfigを作成する．
@@ -96,7 +99,9 @@ dtype = np.float32
 blocksize = 4096
 n_chunks = 0
 current_frame = 0
-sd.default.device = [2, 4] 
+sd.default.device = [2, 4]
+startstop_flag1 = 0
+startstop_flag2 = 0
 
 filepath1 = R"C:\Users\ma210\Desktop\pyPractice\music1.wav"
 filepath2 = R"C:\Users\ma210\Desktop\pyPractice\music2.wav"
@@ -125,13 +130,20 @@ while True:             # Event Loop
     fp1 = np.array([440-220*int(values['-SLIDER1-'])/100, 1320+880*int(values['-SLIDER3-'])/100])     #通過域端周波数[Hz]※ベクトル
     fp2 = np.array([440-220*int(values['-SLIDER2-'])/100, 1320+880*int(values['-SLIDER4-'])/100])     #通過域端周波数[Hz]※ベクトル
     fs = np.array([20, 20000])      #阻止域端周波数[Hz]※ベクトル
- 
+    
+    if event == 'start/stop1':
+        startstop_flag1 = bit_invert(startstop_flag1)
+        
+    if event == 'start/stop2':
+        startstop_flag2 = bit_invert(startstop_flag2)
+        
     with sd.OutputStream(samplerate = sr1, 
                          blocksize = blocksize,
                          channels = nchs1,
                          dtype = dtype) as stream1:
-        #sd.OutputStream(samplerate = f2.sr, blocksize = blocksize,channels = f2.n_channels,dtype = dtype) as stream2:
         # with 関数 as  変数，で勝手にcloseしてくれる
+        
+        
         while True:
             event, values = window.read(timeout=5, timeout_key='-timeout-') # 値の読み取りを5ｍｓ行い，変化が無かったらvaluesに-timeout-が代入される
             chunksize = min(int(nsp1) - current_frame, blocksize)
@@ -139,7 +151,8 @@ while True:             # Event Loop
             # mix
             d1 =  bpf(f1.sig[current_frame:current_frame + chunksize, :],sr1, fp1, fs, gpass, gstop) * (1 - int(values['-SLIDER5-'])/100)
             d2 =  bpf(f2.sig[current_frame:current_frame + chunksize, :],sr1, fp2, fs, gpass, gstop) * int(values['-SLIDER5-'])/100
-            data_mixed = d1 + d2
+            
+            data_mixed = d1*startstop_flag1 + d2*startstop_flag2
 
             stream1.write( data_mixed.astype(dtype) ) 
             n_chunks += 1
