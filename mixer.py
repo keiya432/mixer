@@ -2,7 +2,7 @@
 # import
 # py -m pip install
 
-# StartStopButton?
+# muteButton?
 
 import numpy as np
 import matplotlib.pyplot as plot
@@ -30,8 +30,8 @@ def draw_figure(canvas, figure):
     figure_canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
     return figure_canvas
 
-def bit_invert(num):
-    return ~num & 1
+def logical_invert(num):
+    return int(not num)
 
 ## PRE PROCESS
 # GUI compornent
@@ -76,8 +76,8 @@ window = sg.Window("DJ app", layout=[
     [frame_low1,frame_low2],
     [frame_high1,frame_high2],
     [frame_mix],
-    [sg.Button("start/stop1")],
-    [sg.Button("start/stop2")],
+    [sg.Button("mute1")],
+    [sg.Button("mute2")],
     ],element_justification='center',finalize=True)
 
 # 埋め込む用のfigを作成する．
@@ -100,8 +100,9 @@ blocksize = 4096
 n_chunks = 0
 current_frame = 0
 sd.default.device = [2, 4]
-startstop_flag1 = 0
-startstop_flag2 = 0
+dispoflag = 0
+mute_flag1 = 0
+mute_flag2 = 0
 
 filepath1 = R"C:\Users\ma210\Desktop\pyPractice\music1.wav"
 filepath2 = R"C:\Users\ma210\Desktop\pyPractice\music2.wav"
@@ -118,8 +119,13 @@ sr1 = f1.sr
 
 ## MAIN PROCESS
 while True:             # Event Loop
-    event, values = window.read()
+    print("before window.read")
+    if dispoflag == 0:
+        event, values = window.read()
+        dispoflag = 1
 
+    print("after window.read")
+        
     # buffer_event = event
     window['-LEFT1-'].update(int(values['-SLIDER1-']))
     window['-LEFT2-'].update(int(values['-SLIDER2-']))
@@ -131,18 +137,24 @@ while True:             # Event Loop
     fp2 = np.array([440-220*int(values['-SLIDER2-'])/100, 1320+880*int(values['-SLIDER4-'])/100])     #通過域端周波数[Hz]※ベクトル
     fs = np.array([20, 20000])      #阻止域端周波数[Hz]※ベクトル
     
-    if event == 'start/stop1':
-        startstop_flag1 = bit_invert(startstop_flag1)
-        
-    if event == 'start/stop2':
-        startstop_flag2 = bit_invert(startstop_flag2)
-        
+    if event == 'mute1':
+        mute_flag1 = logical_invert(mute_flag1)
+        # print("flag1: {}".format(mute_flag1))
+    else:
+        print("flag1: {}".format(mute_flag1))
+
+    if event == 'mute2':
+        mute_flag2 = logical_invert(mute_flag2)
+        # print("flag2: {}".format(mute_flag2))
+    else:
+        print("flag2: {}".format(mute_flag2))
+
     with sd.OutputStream(samplerate = sr1, 
                          blocksize = blocksize,
                          channels = nchs1,
                          dtype = dtype) as stream1:
         # with 関数 as  変数，で勝手にcloseしてくれる
-        
+        print("after with")
         
         while True:
             event, values = window.read(timeout=5, timeout_key='-timeout-') # 値の読み取りを5ｍｓ行い，変化が無かったらvaluesに-timeout-が代入される
@@ -152,7 +164,7 @@ while True:             # Event Loop
             d1 =  bpf(f1.sig[current_frame:current_frame + chunksize, :],sr1, fp1, fs, gpass, gstop) * (1 - int(values['-SLIDER5-'])/100)
             d2 =  bpf(f2.sig[current_frame:current_frame + chunksize, :],sr1, fp2, fs, gpass, gstop) * int(values['-SLIDER5-'])/100
             
-            data_mixed = d1*startstop_flag1 + d2*startstop_flag2
+            data_mixed = d1*mute_flag1 + d2*mute_flag2
 
             stream1.write( data_mixed.astype(dtype) ) 
             n_chunks += 1
@@ -171,6 +183,7 @@ while True:             # Event Loop
 
             # timeoutが代入されている場合，ループを抜け出す
             if event != '-timeout-':
+                # event = ''
                 break
 
 
