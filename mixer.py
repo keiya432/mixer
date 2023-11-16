@@ -2,28 +2,18 @@
 # import
 # py -m pip install
 
-# muteButton?
-
 import numpy as np
 import matplotlib.pyplot as plot
 import PySimpleGUI as sg
 import sounddevice as sd
-from scipy import signal
+
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-import mylib as ml # 出来るだけ関数を別ファイルにしたい
+import mylib_processing as mlp
+import mylib_sound as mls # 出来るだけ関数を別ファイルにしたい
 
 
 ## FUNCTION
-def bpf(x, samplerate, fp, fs, gpass, gstop):
-    fn = samplerate / 2                           #ナイキスト周波数
-    wp = fp / fn                                  #ナイキスト周波数で通過域端周波数を正規化
-    ws = fs / fn                                  #ナイキスト周波数で阻止域端周波数を正規化
-    N, Wn = signal.buttord(wp, ws, gpass, gstop)  #オーダーとバターワースの正規化周波数を計算
-    b, a = signal.butter(N, Wn, "band")           #フィルタ伝達関数の分子と分母を計算
-    y = signal.filtfilt(b, a, x,axis=0)                  #信号に対してフィルタをかける
-    return y                                      #フィルタ後の信号を返す
-
 def draw_figure(canvas, figure):
     figure_canvas = FigureCanvasTkAgg(figure, canvas)
     figure_canvas.draw()
@@ -76,8 +66,8 @@ window = sg.Window("DJ app", layout=[
     [frame_low1,frame_low2],
     [frame_high1,frame_high2],
     [frame_mix],
-    [sg.Button("mute1")],
-    [sg.Button("mute2")],
+    [sg.Button("play1")],
+    [sg.Button("play2")],
     ],element_justification='center',finalize=True)
 
 # 埋め込む用のfigを作成する．
@@ -98,24 +88,23 @@ gstop = 40
 dtype = np.float32
 blocksize = 4096
 n_chunks = 0
-current_frame = 0
+current_frame1 = 0
+current_frame2 = 0
 sd.default.device = [2, 4]
 dispoflag = 0
-mute_flag1 = 0
-mute_flag2 = 0
+play_flag1 = 0
+play_flag2 = 0
 
 filepath1 = R"C:\Users\ma210\Desktop\pyPractice\music1.wav"
 filepath2 = R"C:\Users\ma210\Desktop\pyPractice\music2.wav"
-f1 = ml.extractInfo(filepath1)
-f2 = ml.extractInfo(filepath2)
+f1 = mls.extractInfo(filepath1)
+f2 = mls.extractInfo(filepath2)
 
 # 今後複数のファイルを読み込んで処理するので，ここの書き方は変える
 nsp1 = f1.n_samples
 nchs1 = f1.n_channels
 sr1 = f1.sr
 # chunk = np.zeros((blocksize, f1.n_channels))
-
-
 
 ## MAIN PROCESS
 while True:             # Event Loop
@@ -137,17 +126,18 @@ while True:             # Event Loop
     fp2 = np.array([440-220*int(values['-SLIDER2-'])/100, 1320+880*int(values['-SLIDER4-'])/100])     #通過域端周波数[Hz]※ベクトル
     fs = np.array([20, 20000])      #阻止域端周波数[Hz]※ベクトル
     
-    if event == 'mute1':
-        mute_flag1 = logical_invert(mute_flag1)
+    # 出来るだけif文を使いたくない…　いい方法は無いか…
+    if event == 'play1':
+        play_flag1 = logical_invert(play_flag1)
         # print("flag1: {}".format(mute_flag1))
     else:
-        print("flag1: {}".format(mute_flag1))
+        print("flag1: {}".format(play_flag1))
 
-    if event == 'mute2':
-        mute_flag2 = logical_invert(mute_flag2)
-        # print("flag2: {}".format(mute_flag2))
+    if event == 'play2':
+        play_flag2 = logical_invert(play_flag2)
+        # print("flag2: {}".format(play_flag2))
     else:
-        print("flag2: {}".format(mute_flag2))
+        print("flag2: {}".format(play_flag2))
 
     with sd.OutputStream(samplerate = sr1, 
                          blocksize = blocksize,
@@ -158,17 +148,29 @@ while True:             # Event Loop
         
         while True:
             event, values = window.read(timeout=5, timeout_key='-timeout-') # 値の読み取りを5ｍｓ行い，変化が無かったらvaluesに-timeout-が代入される
-            chunksize = min(int(nsp1) - current_frame, blocksize)
+            chunksize1 = min(int(nsp1) - current_frame1, blocksize)
+            chunksize2= min(int(nsp1) - current_frame2, blocksize)
+
+            # ここも出来るだけif文を使いたくない
+            if chunksize1 < blocksize:
+                current_frame1 = 0
+                play_flag1 = 0
+                break
+            
+            if chunksize2 < blocksize:
+                current_frame2 = 0
+                play_flag2 = 0
+                break
 
             # mix
-            d1 =  bpf(f1.sig[current_frame:current_frame + chunksize, :],sr1, fp1, fs, gpass, gstop) * (1 - int(values['-SLIDER5-'])/100)
-            d2 =  bpf(f2.sig[current_frame:current_frame + chunksize, :],sr1, fp2, fs, gpass, gstop) * int(values['-SLIDER5-'])/100
+            d1 =  mlp.bpf(f1.sig[current_frame1:current_frame1 + chunksize1, :],sr1, fp1, fs, gpass, gstop) * (1 - int(values['-SLIDER5-'])/100)
+            d2 =  mlp.bpf(f2.sig[current_frame2:current_frame2 + chunksize2, :],sr1, fp2, fs, gpass, gstop) * int(values['-SLIDER5-'])/100
             
-            data_mixed = d1*mute_flag1 + d2*mute_flag2
+
+            data_mixed = d1*play_flag1 + d2*play_flag2
 
             stream1.write( data_mixed.astype(dtype) ) 
-            n_chunks += 1
-            
+            # n_chunks += 1
             # この処理を入れると重くなる
             # ax1.cla() # 更新前のグラフを消去 
             # ax1.plot(data_filtered, alpha=0.4)
@@ -177,9 +179,9 @@ while True:             # Event Loop
             # fig_agg1.draw()
             # fig_agg2.draw()
 
-            if chunksize < blocksize: 
-                break
-            current_frame += chunksize
+            current_frame1 += chunksize1*play_flag1
+            current_frame2 += chunksize2*play_flag2
+            # 0，１の値を取るmute_flagをchunk_sizeにかけることで音を止めた後，バックグラウンドで曲が進まないようにしている
 
             # timeoutが代入されている場合，ループを抜け出す
             if event != '-timeout-':
